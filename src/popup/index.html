@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI PM求职助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 400px;
+            min-height: 500px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            min-height: 500px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6c757d;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab:hover {
+            background: #e9ecef;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+        
+        .tab-content {
+            padding: 20px;
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+            transition: transform 0.2s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .job-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+        
+        .job-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .job-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+        
+        .job-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .job-company {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 8px;
+        }
+        
+        .job-score {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 16px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .footer {
+            padding: 16px 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+        
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI PM求职助手</h1>
+            <p>专为国际学生设计的求职自动化工具</p>
+            <div class="status-badge" id="statusBadge">正在连接...</div>
+        </div>
+        
+        <div class="nav-tabs">
+            <div class="tab active" data-tab="dashboard">仪表盘</div>
+            <div class="tab" data-tab="jobs">职位列表</div>
+            <div class="tab" data-tab="resume">简历优化</div>
+            <div class="tab" data-tab="settings">设置</div>
+        </div>
+        
+        <!-- 仪表盘 -->
+        <div class="tab-content active" id="dashboard">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalJobs">0</div>
+                    <div class="stat-label">发现职位</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="highMatchJobs">0</div>
+                    <div class="stat-label">高匹配职位</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="applications">0</div>
+                    <div class="stat-label">已申请</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="successRate">0%</div>
+                    <div class="stat-label">成功率</div>
+                </div>
+            </div>
+            
+            <h3 style="margin-bottom: 12px; color: #333;">今日推荐</h3>
+            <div class="job-list" id="recommendedJobs">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>正在加载推荐职位...</p>
+                </div>
+            </div>
+            
+            <button class="btn" id="scanJobsBtn">
+                🔍 扫描LinkedIn职位
+            </button>
+        </div>
+        
+        <!-- 职位列表 -->
+        <div class="tab-content" id="jobs">
+            <div class="form-group">
+                <input type="text" class="form-input" id="jobSearch" placeholder="搜索职位或公司...">
+            </div>
+            
+            <div class="job-list" id="allJobs">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <p>还没有发现职位</p>
+                    <p style="font-size: 14px; margin-top: 8px;">浏览LinkedIn职位页面开始监控</p>
+                </div>
+            </div>
+            
+            <button class="btn btn-secondary" id="refreshJobsBtn">
+                🔄 刷新职位列表
+            </button>
+        </div>
+        
+        <!-- 简历优化 -->
+        <div class="tab-content" id="resume">
+            <div class="form-group">
+                <label class="form-label">上传简历</label>
+                <input type="file" class="form-input" id="resumeUpload" accept=".txt,.pdf,.doc,.docx">
+                <p style="font-size: 12px; color: #6c757d; margin-top: 4px;">支持TXT, PDF, DOC, DOCX格式</p>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">或直接输入简历内容</label>
+                <textarea class="form-input textarea" id="resumeText" placeholder="粘贴你的简历内容..."></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">职位描述（可选）</label>
+                <textarea class="form-input textarea" id="jobDescription" placeholder="粘贴职位描述，获得更精准的优化建议..."></textarea>
+            </div>
+            
+            <button class="btn" id="optimizeBtn">
+                ✨ 安全优化简历
+            </button>
+            
+            <div id="optimizationResult" style="margin-top: 20px; display: none;">
+                <h3 style="margin-bottom: 12px; color: #333;">优化结果</h3>
+                <div class="job-card">
+                    <div class="job-title">优化完成！</div>
+                    <p style="font-size: 14px; color: #6c757d; margin-bottom: 12px;" id="optimizationSummary"></p>
+                    <button class="btn btn-secondary" id="viewChangesBtn">查看修改详情</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 设置 -->
+        <div class="tab-content" id="settings">
+            <div class="form-group">
+                <label class="form-label">Claude API密钥</label>
+                <input type="password" class="form-input" id="apiKey" placeholder="输入你的Claude API密钥">
+                <p style="font-size: 12px; color: #6c757d; margin-top: 4px;">用于高级简历分析功能（可选）</p>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">
+                    <input type="checkbox" id="autoOptimize" checked>
+                    自动优化简历
+                </label>
+                <p style="font-size: 12px; color: #6c757d; margin-top: 4px;">发现高匹配职位时自动优化简历</p>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">
+                    <input type="checkbox" id="sponsorFilter" checked>
+                    只显示Sponsor友好职位
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">
+                    <input type="checkbox" id="experienceFilter" checked>
+                    过滤高级职位（5+年经验）
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">数据管理</label>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" id="exportDataBtn" style="flex: 1;">导出数据</button>
+                    <button class="btn btn-secondary" id="importDataBtn" style="flex: 1;">导入数据</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">系统状态</label>
+                <div id="systemStatus" style="font-size: 14px; color: #6c757d;">
+                    正在检查系统状态...
+                </div>
+            </div>
+            
+            <button class="btn" id="saveSettingsBtn">
+                💾 保存设置
+            </button>
+            
+            <button class="btn btn-secondary" id="resetSystemBtn" style="margin-top: 8px;">
+                🔄 重置系统
+            </button>
+        </div>
+        
+        <div class="footer">
+            <p>AI PM求职助手 v1.0.0</p>
+            <p>安全第一：绝不添加虚假技能和经历</p>
+            <p><a href="https://github.com/sylviaaaye/linkedin-resume" target="_blank">查看GitHub仓库</a></p>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

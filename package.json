@@ -1,0 +1,43 @@
+{
+  "name": "linkedin-resume-optimizer",
+  "version": "1.0.0",
+  "description": "AI PM求职自动化系统 - LinkedIn职位监控和安全简历优化",
+  "main": "src/background/service-worker.js",
+  "scripts": {
+    "build": "echo 'Build process not yet implemented'",
+    "test": "jest",
+    "lint": "echo 'Linting not yet implemented'",
+    "format": "prettier --write 'src/**/*.js' 'docs/**/*.md'",
+    "prepare": "husky install"
+  },
+  "keywords": [
+    "chrome-extension",
+    "linkedin",
+    "resume",
+    "ai-pm",
+    "job-search",
+    "automation"
+  ],
+  "author": "Sylvia (Ye Shhyoungchee)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sylviaaaye/linkedin-resume.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sylviaaaye/linkedin-resume/issues"
+  },
+  "homepage": "https://github.com/sylviaaaye/linkedin-resume#readme",
+  "devDependencies": {
+    "husky": "^8.0.0",
+    "jest": "^30.3.0",
+    "prettier": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": [
+    "last 2 Chrome versions"
+  ]
+}

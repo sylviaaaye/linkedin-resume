@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "US Resume Personal Assistant",
+  "version": "1.0.0",
+  "description": "Personalized resume analyzer and job application assistant for international students",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.linkedin.com/*",
+    "https://api.anthropic.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_title": "Resume Assistant"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.linkedin.com/jobs/*"],
+      "js": ["src/content/enhanced-linkedin-monitor.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["resume-analyzer/pdf.worker.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
