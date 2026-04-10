@@ -45,75 +45,135 @@ class SafeResumeOptimizer {
     }
     
     async optimizeForJob(originalResume, jobDescription, userPreferences = {}) {
-        console.log('🔍 开始安全简历优化流程');
-        
+        console.log('🔍 开始 Claude 简历优化...');
+
+        if (!originalResume || originalResume.trim().length < 50) {
+            return {
+                success: false,
+                error: '简历内容太短，请提供完整简历（至少 50 字符）',
+                fallback: originalResume
+            };
+        }
+
+        if (!this.apiKey) {
+            return {
+                success: false,
+                error: '未设置 Claude API Key，请在 Settings 中配置',
+                fallback: originalResume
+            };
+        }
+
         try {
-            // 阶段1: 验证原始简历
-            const validationResult = await this.validateOriginalResume(originalResume);
-            if (!validationResult.valid) {
-                throw new Error(`简历验证失败: ${validationResult.errors.join(', ')}`);
-            }
-            
-            // 阶段2: 分析职位要求
-            const jobAnalysis = await this.analyzeJobDescription(jobDescription);
-            
-            // 阶段3: 生成安全优化建议
-            const suggestions = await this.generateSafeSuggestions(
-                originalResume, 
-                jobAnalysis, 
+            const result = await this.callClaudeForOptimization(
+                originalResume,
+                jobDescription,
                 userPreferences
             );
-            
-            // 阶段4: 应用优化（严格遵守安全规则）
-            const optimizationResult = await this.applyOptimizations(
-                originalResume, 
-                suggestions
-            );
-            
-            // 阶段5: 最终验证和安全检查
-            const safetyCheck = await this.performSafetyCheck(
-                originalResume, 
-                optimizationResult.optimizedResume
-            );
-            
-            if (!safetyCheck.passed) {
-                throw new Error(`安全检查失败: ${safetyCheck.violations.join(', ')}`);
-            }
-            
-            // 阶段6: 生成优化报告
-            const report = this.generateOptimizationReport(
-                originalResume,
-                optimizationResult,
-                suggestions,
-                safetyCheck
-            );
-            
-            console.log('✅ 安全简历优化完成');
-            
+
+            console.log('✅ 简历优化完成');
             return {
                 success: true,
-                optimizedResume: optimizationResult.optimizedResume,
-                suggestions: suggestions,
-                changes: optimizationResult.changes,
-                safetyReport: safetyCheck,
-                optimizationReport: report,
+                optimizedResume: result.optimizedResume,
+                changes: result.changes,
+                summary: result.summary,
+                optimizationReport: {
+                    summary: { safetyPassed: true, changesCount: result.changes.length },
+                    summary_text: result.summary
+                },
                 metadata: {
                     originalLength: originalResume.length,
-                    optimizedLength: optimizationResult.optimizedResume.length,
-                    changeCount: optimizationResult.changes.length,
+                    optimizedLength: result.optimizedResume.length,
+                    changeCount: result.changes.length,
                     timestamp: new Date().toISOString()
                 }
             };
-            
+
         } catch (error) {
             console.error('❌ 简历优化失败:', error);
             return {
                 success: false,
                 error: error.message,
-                fallbackResume: originalResume, // 始终返回原始简历作为后备
-                suggestions: this.generateFallbackSuggestions(originalResume)
+                fallback: originalResume
             };
         }
+    }
+
+    async callClaudeForOptimization(originalResume, jobDescription, userPreferences = {}) {
+        const isIntlStudent = userPreferences.isInternationalStudent;
+
+        const systemPrompt = `You are a professional resume editor specializing in AI Product Manager roles${isIntlStudent ? ' for F1 OPT international students' : ''}.
+
+STRICT SAFETY RULES — follow these without exception:
+- NEVER add skills, tools, or technologies not explicitly mentioned in the original resume
+- NEVER add work experience, projects, internships, or education that do not exist in the original
+- NEVER change company names, job titles, school names, or dates
+- NEVER fabricate numbers or metrics — if a metric is missing, mark the spot as [ADD YOUR METRIC] instead
+- You MAY rephrase descriptions to sound more professional and impactful
+- You MAY reorder bullet points to lead with the most relevant achievements
+- You MAY strengthen weak action verbs (e.g. "worked on" → "developed", "helped with" → "led")
+- You MAY improve section order, formatting, and conciseness`;
+
+        const jobContext = jobDescription?.trim()
+            ? `\nTARGET JOB DESCRIPTION:\n${jobDescription}\n`
+            : '';
+
+        const userPrompt = `Please optimize the resume below.${jobContext}
+
+ORIGINAL RESUME:
+${originalResume}
+
+Return ONLY valid JSON with no markdown fences or extra text:
+{
+  "optimizedResume": "<full optimized resume text>",
+  "changes": ["<specific change 1>", "<specific change 2>"],
+  "summary": "<one sentence summary of what was improved>"
+}`;
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': this.apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-6',
+                max_tokens: 4096,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: userPrompt }]
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(`API 错误 (${response.status}): ${errData.error?.message || '请检查 API Key 是否有效'}`);
+        }
+
+        const data = await response.json();
+        const text = data.content[0].text;
+
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error('Claude 返回格式异常，无法解析结果');
+        }
+
+        let parsed;
+        try {
+            parsed = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+            throw new Error('Claude 返回的 JSON 解析失败');
+        }
+
+        if (!parsed.optimizedResume) {
+            throw new Error('Claude 未返回优化后的简历内容');
+        }
+
+        return {
+            optimizedResume: parsed.optimizedResume,
+            changes: Array.isArray(parsed.changes) ? parsed.changes : [],
+            summary: parsed.summary || '优化完成'
+        };
     }
     
     async validateOriginalResume(resumeText) {

@@ -657,14 +657,14 @@
                     <textarea class="resume-textarea" id="resumeText" placeholder="Paste your resume here..."></textarea>
                     
                     <div class="resume-actions">
-                        <button class="btn btn-secondary" onclick="popupApp.saveResumeVersion()">
+                        <button class="btn btn-secondary" id="saveVersionBtn">
                             <i>💾</i> Save Version
                         </button>
-                        <button class="btn btn-secondary" onclick="popupApp.exportResume()">
+                        <button class="btn btn-secondary" id="exportResumeBtn">
                             <i>📤</i> Export
                         </button>
                         <input type="file" id="resumeUpload" accept=".txt,.md,.pdf" style="display: none;">
-                        <button class="btn btn-secondary" onclick="document.getElementById('resumeUpload').click()">
+                        <button class="btn btn-secondary" id="uploadResumeBtn">
                             <i>📁</i> Upload
                         </button>
                     </div>

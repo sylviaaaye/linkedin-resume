@@ -906,7 +906,7 @@ class DataManager {
         const data = {
             version: '1.0',
             exportedAt: new Date().toISOString(),
-            jobs: await this.getJobs({}, 'savedAt', 1000),
+            jobs: await this.getJobs({}, 'score', 1000),
             resumes: await this.getResumes({}, 'createdAt', 100),
             applications: await this.getApplications({}, 'appliedAt', 500),
             companies: await this.getAllCompanies(),

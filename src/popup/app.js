@@ -49,6 +49,11 @@ class PopupApp {
         document.getElementById('importDataBtn')?.addEventListener('click', () => this.importData());
         document.getElementById('viewChangesBtn')?.addEventListener('click', () => this.viewChanges());
         
+        // Resume 操作按钮
+        document.getElementById('saveVersionBtn')?.addEventListener('click', () => this.saveResumeVersion());
+        document.getElementById('exportResumeBtn')?.addEventListener('click', () => this.exportResume());
+        document.getElementById('uploadResumeBtn')?.addEventListener('click', () => document.getElementById('resumeUpload').click());
+
         // 文件上传
         document.getElementById('resumeUpload')?.addEventListener('change', (e) => this.handleFileUpload(e));
         
@@ -229,19 +234,26 @@ class PopupApp {
     
     updateSettingsUI() {
         const statusElement = document.getElementById('systemStatus');
-        if (!statusElement || !this.systemStatus) return;
-        
+        if (!statusElement) return;
+
+        if (!this.systemStatus) {
+            statusElement.innerHTML = '<span style="color: var(--warning-color);">⚠️ 系统状态加载中...</span>';
+            return;
+        }
+
         const { database, stats, uptime } = this.systemStatus;
-        
         statusElement.innerHTML = `
             <div style="margin-bottom: 4px;">
-                <strong>数据库:</strong> ${database?.jobs?.total || 0} 职位, ${database?.applications?.total || 0} 申请
+                <strong>职位:</strong> ${database?.jobs?.total ?? 0} 个&nbsp;&nbsp;
+                <strong>申请:</strong> ${database?.applications?.total ?? 0} 个&nbsp;&nbsp;
+                <strong>简历版本:</strong> ${database?.resumes ?? 0} 个
             </div>
             <div style="margin-bottom: 4px;">
                 <strong>运行时间:</strong> ${uptime || '未知'}
             </div>
             <div>
-                <strong>版本:</strong> ${this.systemStatus.version || '1.0.0'}
+                <strong>版本:</strong> ${this.systemStatus.version || '1.0.0'} &nbsp;
+                <span style="color: var(--success-color);">✅ 运行正常</span>
             </div>
         `;
     }
@@ -308,25 +320,31 @@ class PopupApp {
             });
             
             if (response.success) {
-                // 显示优化结果
-                document.getElementById('optimizationSummary').textContent = 
-                    `优化完成！${response.changes?.length || 0} 处修改，安全检查通过。`;
-                document.getElementById('optimizationResult').style.display = 'block';
-                
-                this.showMessage('简历优化完成', 'success');
-                
-                // 保存优化后的简历
+                // 更新简历文本
                 if (response.optimizedResume) {
                     document.getElementById('resumeText').value = response.optimizedResume;
                 }
-                
+
+                // 显示修改摘要
+                const changes = response.changes || [];
+                const summaryEl = document.getElementById('optimizationSummary');
+                if (changes.length > 0) {
+                    summaryEl.innerHTML = `
+                        <div style="margin-bottom: 8px; color: var(--success-color); font-weight: 600;">
+                            ${response.summary || `完成 ${changes.length} 处优化`}
+                        </div>
+                        <ul style="margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.7;">
+                            ${changes.map(c => `<li>${this.escapeHtml(c)}</li>`).join('')}
+                        </ul>`;
+                } else {
+                    summaryEl.textContent = response.summary || '优化完成';
+                }
+                document.getElementById('optimizationResult').style.display = 'block';
+
+                this.showMessage(`简历优化完成，${changes.length} 处改进`, 'success');
+
             } else {
                 this.showMessage('优化失败: ' + (response.error || '未知错误'), 'error');
-                
-                // 显示后备建议
-                if (response.fallback) {
-                    document.getElementById('resumeText').value = response.fallback;
-                }
             }
             
         } catch (error) {
@@ -506,8 +524,7 @@ class PopupApp {
     }
     
     viewChanges() {
-        // 查看修改详情（待实现）
-        this.showMessage('修改详情功能开发中', 'info');
+        document.getElementById('optimizationResult')?.scrollIntoView({ behavior: 'smooth' });
     }
     
     // 工具方法
@@ -639,35 +656,54 @@ class PopupApp {
     async loadResumeVersions() {
         try {
             const response = await this.sendMessage('getResumes', { limit: 10 });
-            
-            if (response.success && response.resumes.length > 0) {
-                const container = document.getElementById('resumeVersions');
-                if (container) {
-                    container.innerHTML = response.resumes.map(resume => `
-                        <div class="resume-version" style="margin-bottom: 8px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong>${this.escapeHtml(resume.version)}</strong>
-                                    ${resume.isOriginal ? '<span style="color: #10b981; margin-left: 8px;">(原始)</span>' : ''}
-                                </div>
-                                <div>
-                                    <button class="btn" style="padding: 2px 8px; font-size: 12px; margin-right: 4px;"
-                                            onclick="popupApp.loadResumeVersion('${resume.id}')">
-                                        加载
-                                    </button>
-                                    <button class="btn" style="padding: 2px 8px; font-size: 12px; background: #ef4444;"
-                                            onclick="popupApp.deleteResumeVersion('${resume.id}')">
-                                        删除
-                                    </button>
-                                </div>
+            const container = document.getElementById('resumeVersions');
+            if (!container) return;
+
+            if (!response.success || response.resumes.length === 0) {
+                container.innerHTML = '<div class="empty-state" style="padding: var(--spacing-md);"><p>No saved versions yet</p></div>';
+                return;
+            }
+
+            container.innerHTML = response.resumes.map(resume => {
+                const versionName = typeof resume.version === 'string' && resume.version.length > 1
+                    ? resume.version
+                    : (resume.isOriginal ? '原始版本' : `版本 ${resume.id?.slice(-4) || '?'}`);
+                const changes = resume.metadata?.changes;
+                const changeBadge = changes > 0
+                    ? `<span style="font-size: 11px; color: var(--primary-color); margin-left: 6px;">${changes} 处改动</span>`
+                    : '';
+                return `
+                <div class="resume-version" style="margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                ${this.escapeHtml(versionName)}${changeBadge}
+                                ${resume.isOriginal ? '<span style="color: var(--success-color); margin-left: 6px; font-size: 11px;">原始</span>' : ''}
                             </div>
-                            <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                                创建于: ${this.formatDate(resume.createdAt)}
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+                                ${this.formatDate(resume.createdAt)}
                             </div>
                         </div>
-                    `).join('');
-                }
-            }
+                        <div style="display: flex; gap: 4px; margin-left: 8px; flex-shrink: 0;">
+                            <button class="btn btn-secondary btn-sm" data-action="load" data-id="${resume.id}">加载</button>
+                            <button class="btn btn-danger btn-sm" data-action="delete" data-id="${resume.id}">删除</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // 用 addEventListener 替代 onclick 属性（MV3 CSP 禁止内联事件）
+            container.querySelectorAll('button[data-action]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.id;
+                    if (btn.dataset.action === 'load') {
+                        this.loadResumeVersion(id);
+                    } else if (btn.dataset.action === 'delete') {
+                        this.deleteResumeVersion(id);
+                    }
+                });
+            });
+
         } catch (error) {
             console.error('加载简历版本失败:', error);
         }

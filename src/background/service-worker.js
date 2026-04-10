@@ -326,13 +326,18 @@ class AIPMJobAssistant {
             
             if (result.success) {
                 // 保存优化后的简历
+                const dateStr = new Date().toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const versionLabel = jobDescription?.trim()
+                    ? `优化版本 ${dateStr}（针对 JD）`
+                    : `优化版本 ${dateStr}`;
                 const resumeData = {
                     content: result.optimizedResume,
+                    version: versionLabel,
                     isOriginal: false,
                     metadata: {
-                        optimizedFor: jobDescription.substring(0, 100),
-                        score: result.optimizationReport?.summary?.safetyPassed ? 100 : 50,
-                        changes: result.changes.length
+                        optimizedFor: jobDescription?.substring(0, 100) || '',
+                        changes: result.changes.length,
+                        summary: result.summary || ''
                     }
                 };
                 
