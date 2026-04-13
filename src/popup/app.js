@@ -465,9 +465,14 @@ class PopupApp {
     async handleFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
-        
+
         try {
-            const text = await this.readFileAsText(file);
+            let text;
+            if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+                text = await this.extractTextFromPDF(file);
+            } else {
+                text = await this.readFileAsText(file);
+            }
             document.getElementById('resumeText').value = text;
             this.showMessage('简历文件已加载', 'success');
         } catch (error) {
@@ -475,7 +480,24 @@ class PopupApp {
             this.showMessage('读取文件失败: ' + error.message, 'error');
         }
     }
-    
+
+    async extractTextFromPDF(file) {
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        if (!pdfjsLib) throw new Error('PDF.js 未加载');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('resume-analyzer/pdf.worker.js');
+
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pages = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items.map(item => item.str).join(' ');
+            pages.push(pageText);
+        }
+        return pages.join('\n\n');
+    }
+
     readFileAsText(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -714,7 +736,10 @@ class PopupApp {
             const response = await this.sendMessage('getResume', { id: resumeId });
             
             if (response.success && response.resume) {
-                document.getElementById('resumeText').value = response.resume.content;
+                const textarea = document.getElementById('resumeText');
+                textarea.value = response.resume.content;
+                textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                textarea.focus();
                 this.showMessage(`已加载简历版本`, 'success');
             }
         } catch (error) {

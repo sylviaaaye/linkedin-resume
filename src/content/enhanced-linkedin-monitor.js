@@ -149,9 +149,9 @@ class EnhancedLinkedInMonitor {
     
     async scanCurrentPage() {
         console.log('📊 开始扫描当前页面...');
-        
-        // 等待页面稳定
-        await this.randomDelay(2000, 4000);
+
+        // 等待页面稳定（缩短延迟）
+        await this.randomDelay(500, 1500);
         
         // 查找所有职位卡片
         const jobCards = this.findJobCards();
@@ -172,26 +172,13 @@ class EnhancedLinkedInMonitor {
     }
     
     findJobCards() {
-        // LinkedIn职位卡片选择器（多种可能的选择器）
-        const selectors = [
-            '[data-job-id]',
-            '.job-card-container',
-            '.jobs-search-results__list-item',
-            '[class*="job-card"]',
-            '[class*="jobCard"]',
-            'li[data-occludable-job-id]'
-        ];
-        
-        let cards = [];
-        selectors.forEach(selector => {
-            const elements = document.querySelectorAll(selector);
-            if (elements.length > 0) {
-                cards = [...cards, ...Array.from(elements)];
-            }
-        });
-        
-        // 去重（基于位置或ID）
-        return this.deduplicateCards(cards);
+        // LinkedIn 2025+ 用 currentJobId 参数标识职位，不再用 data-job-id 属性
+        const jobLinks = document.querySelectorAll('a[href*="currentJobId"]');
+        console.log(`🔍 找到 ${jobLinks.length} 个职位链接`);
+        if (jobLinks.length === 0) {
+            console.warn('⚠️ 未找到职位，URL:', window.location.href);
+        }
+        return this.deduplicateCards(Array.from(jobLinks));
     }
     
     deduplicateCards(cards) {
@@ -465,74 +452,55 @@ class EnhancedLinkedInMonitor {
     }
     
     // 工具方法
+
+    // 从 <a href> 获取职位链接（jobCard 现在是 <a> 元素）
+    _getLink(jobCard) {
+        if (jobCard.tagName === 'A') return jobCard;
+        return jobCard.querySelector('a[href*="currentJobId"]');
+    }
+
     extractJobId(jobCard) {
-        return jobCard.dataset.jobId || 
-               jobCard.getAttribute('data-occludable-job-id') ||
-               jobCard.closest('[data-job-id]')?.dataset.jobId ||
-               this.generateJobId(jobCard);
+        const link = this._getLink(jobCard);
+        const href = link?.href || '';
+        const match = href.match(/currentJobId=(\d+)/);
+        return match ? match[1] : null;
     }
-    
-    generateJobId(jobCard) {
-        const title = this.extractJobTitle(jobCard);
-        const company = this.extractCompany(jobCard);
-        return `${company}-${title}`.replace(/[^a-z0-9]/gi, '-').toLowerCase();
-    }
-    
+
     extractJobTitle(jobCard) {
-        const selectors = [
-            '.job-card-list__title',
-            '.job-card-container__title',
-            'h3',
-            '[class*="job-title"]',
-            '[class*="title"]'
-        ];
-        
-        for (const selector of selectors) {
-            const element = jobCard.querySelector(selector);
-            if (element) {
-                return element.textContent.trim() || 'Unknown Title';
-            }
+        const link = this._getLink(jobCard);
+        if (!link) return 'Unknown Title';
+        // aria-label 格式通常为 "职位名 at 公司 in 地点"
+        const ariaLabel = link.getAttribute('aria-label') || '';
+        if (ariaLabel) {
+            const atIdx = ariaLabel.search(/\s+at\s+/i);
+            if (atIdx > 0) return ariaLabel.slice(0, atIdx).trim();
+            return ariaLabel.split('·')[0].trim();
         }
-        
-        return 'Unknown Title';
+        return link.textContent.trim() || 'Unknown Title';
     }
-    
+
     extractCompany(jobCard) {
-        const selectors = [
-            '.job-card-container__company-name',
-            '[class*="company-name"]',
-            '[class*="company"]'
-        ];
-        
-        for (const selector of selectors) {
-            const element = jobCard.querySelector(selector);
-            if (element) {
-                return element.textContent.trim() || 'Unknown Company';
-            }
-        }
-        
+        const link = this._getLink(jobCard);
+        const ariaLabel = link?.getAttribute('aria-label') || '';
+        // "... at Company in Location ·"
+        const m = ariaLabel.match(/\bat\s+(.+?)\s+in\s+/i) ||
+                  ariaLabel.match(/\bat\s+(.+?)(?:\s+·|$)/i);
+        if (m) return m[1].trim();
         return 'Unknown Company';
     }
-    
+
     extractLocation(jobCard) {
-        const selectors = [
-            '.job-card-container__metadata-item',
-            '[class*="location"]',
-            '[class*="locality"]'
-        ];
-        
-        for (const selector of selectors) {
-            const element = jobCard.querySelector(selector);
-            if (element) {
-                return element.textContent.trim() || 'Unknown Location';
-            }
-        }
-        
-        return 'Unknown Location';
+        const link = this._getLink(jobCard);
+        const ariaLabel = link?.getAttribute('aria-label') || '';
+        const m = ariaLabel.match(/\bin\s+(.+?)(?:\s+·|$)/i);
+        return m ? m[1].trim() : 'Unknown Location';
     }
-    
+
     extractPostedTime(jobCard) {
-        const timeText = jobCard.querySelector('[class*="time"]')?.textContent || '';
+        const link = this._getLink(jobCard);
+        const ariaLabel = link?.getAttribute('aria-label') || '';
+        // aria-label 里有 "· X days ago"
+        const timeText = ariaLabel.match(/·\s*(.+?ago)/i)?.[1] || '';
         return this.parseLinkedInTime(timeText);
     }
     
@@ -569,27 +537,10 @@ class EnhancedLinkedInMonitor {
     }
     
     extractJobUrl(jobCard) {
-        // 尝试提取职位详情链接
-        const linkSelectors = [
-            'a[href*="/jobs/"]',
-            'a[href*="linkedin.com/jobs/view"]',
-            'a.job-card-container__link'
-        ];
-        
-        for (const selector of linkSelectors) {
-            const link = jobCard.querySelector(selector);
-            if (link && link.href) {
-                return link.href;
-            }
-        }
-        
-        // 如果没有找到链接，尝试从ID构造
         const jobId = this.extractJobId(jobCard);
-        if (jobId && jobId.includes('-')) {
-            return `https://www.linkedin.com/jobs/view/${jobId}`;
-        }
-        
-        return '';
+        if (jobId) return `https://www.linkedin.com/jobs/view/${jobId}/`;
+        const link = this._getLink(jobCard);
+        return link?.href || '';
     }
     
     getCardPosition(card) {
@@ -600,29 +551,20 @@ class EnhancedLinkedInMonitor {
     
     handleNewNodes(nodes) {
         nodes.forEach(node => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-                // 检查是否是职位卡片
-                if (this.isJobCard(node)) {
-                    this.scheduleJobAnalysis(node);
-                }
-                
-                // 检查子节点
-                const jobCards = node.querySelectorAll('[data-job-id], .job-card-container');
-                jobCards.forEach(card => {
-                    this.scheduleJobAnalysis(card);
-                });
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+            // 节点本身是职位链接
+            if (node.tagName === 'A' && node.href?.includes('currentJobId')) {
+                this.scheduleJobAnalysis(node);
             }
+            // 子节点里有职位链接
+            node.querySelectorAll?.('a[href*="currentJobId"]').forEach(link => {
+                this.scheduleJobAnalysis(link);
+            });
         });
     }
-    
+
     isJobCard(element) {
-        const selectors = [
-            '[data-job-id]',
-            '.job-card-container',
-            '[class*="job-card"]'
-        ];
-        
-        return selectors.some(selector => element.matches(selector));
+        return element.tagName === 'A' && element.href?.includes('currentJobId');
     }
     
     async scheduleJobAnalysis(jobCard) {
@@ -764,20 +706,26 @@ class EnhancedLinkedInMonitor {
     setupMessageListener() {
         chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             switch (request.action) {
+                case 'scanJobs':
+                    this.scanCurrentPage().then(() => {
+                        sendResponse({ success: true, count: this.jobListings.size });
+                    });
+                    return true; // 保持通道开放，等待 async 完成
+
                 case 'getJobStats':
                     sendResponse(this.getJobStatistics());
                     break;
-                    
+
                 case 'getTopJobs':
                     sendResponse(this.getTopJobs(request.limit || 10));
                     break;
-                    
+
                 case 'clearJobs':
                     this.jobListings.clear();
                     this.detectedJobs.clear();
                     sendResponse({ success: true });
                     break;
-                    
+
                 case 'updateKeywords':
                     if (request.keywords) {
                         this.updateKeywords(request.keywords);

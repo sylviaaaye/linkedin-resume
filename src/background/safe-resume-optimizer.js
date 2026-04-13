@@ -122,12 +122,20 @@ STRICT SAFETY RULES — follow these without exception:
 ORIGINAL RESUME:
 ${originalResume}
 
-Return ONLY valid JSON with no markdown fences or extra text:
-{
-  "optimizedResume": "<full optimized resume text>",
-  "changes": ["<specific change 1>", "<specific change 2>"],
-  "summary": "<one sentence summary of what was improved>"
-}`;
+Return your response in EXACTLY this format using the delimiters shown — no JSON, no markdown:
+
+===OPTIMIZED_RESUME===
+<full optimized resume text here>
+===END_RESUME===
+
+===CHANGES===
+- <specific change 1>
+- <specific change 2>
+===END_CHANGES===
+
+===SUMMARY===
+<one sentence summary of what was improved>
+===END_SUMMARY===`;
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -153,27 +161,22 @@ Return ONLY valid JSON with no markdown fences or extra text:
         const data = await response.json();
         const text = data.content[0].text;
 
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-            throw new Error('Claude 返回格式异常，无法解析结果');
+        const resumeMatch = text.match(/===OPTIMIZED_RESUME===\s*([\s\S]*?)\s*===END_RESUME===/);
+        const changesMatch = text.match(/===CHANGES===\s*([\s\S]*?)\s*===END_CHANGES===/);
+        const summaryMatch = text.match(/===SUMMARY===\s*([\s\S]*?)\s*===END_SUMMARY===/);
+
+        if (!resumeMatch) {
+            throw new Error('Claude 返回格式异常，未找到优化后的简历内容');
         }
 
-        let parsed;
-        try {
-            parsed = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-            throw new Error('Claude 返回的 JSON 解析失败');
-        }
+        const optimizedResume = resumeMatch[1].trim();
+        const changesText = changesMatch ? changesMatch[1].trim() : '';
+        const changes = changesText
+            ? changesText.split('\n').map(l => l.replace(/^[-•]\s*/, '').trim()).filter(Boolean)
+            : [];
+        const summary = summaryMatch ? summaryMatch[1].trim() : '优化完成';
 
-        if (!parsed.optimizedResume) {
-            throw new Error('Claude 未返回优化后的简历内容');
-        }
-
-        return {
-            optimizedResume: parsed.optimizedResume,
-            changes: Array.isArray(parsed.changes) ? parsed.changes : [],
-            summary: parsed.summary || '优化完成'
-        };
+        return { optimizedResume, changes, summary };
     }
     
     async validateOriginalResume(resumeText) {

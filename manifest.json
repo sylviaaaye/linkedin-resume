@@ -29,7 +29,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["resume-analyzer/pdf.worker.js"],
+      "resources": ["resume-analyzer/pdf.worker.js", "resume-analyzer/pdf.min.js"],
       "matches": ["<all_urls>"]
     }
   ]
